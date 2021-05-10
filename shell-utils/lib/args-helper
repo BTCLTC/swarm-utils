@@ -1,0 +1,529 @@
+#!/bin/sh
+
+######################################################################
+### 参数定义
+######################################################################
+
+# --------------------------------------------------------------------
+# [AH_ArgsMeta]
+#
+# 参数元数据，用于描述参数，示例如下：
+# AH_ArgsMeta="
+# # Usage: cat [OPTION]... [FILE]...
+# # Concatenate FILE(s), or standard input, to standard output.
+# #
+# ?   -A, --show-all          ### equivalent to -vET
+# +   -b, --number-nonblank   ### number nonempty output lines
+# ?   -e                      ### equivalent to -vE
+# ?   -E, --show-ends         ### display $ at end of each line
+# +   -n, --number            ### number all output lines
+# +   -s, --squeeze-blank     ### suppress repeated empty output lines
+# ?   -t                      ### equivalent to -vT
+# *   -T, --show-tabs         ### display TAB characters as ^I
+# ?   -u                      ### (ignored)
+# ?   -v, --show-nonprinting  ### use ^ and M- notation, except for LFD and TAB
+# ?       --help              ### display this help and exit
+# ?       --version           ### output version information and exit
+# #
+# # With no FILE, or when FILE is -, read standard input.
+# #
+# # Examples:
+# #   cat f - g  Output f's contents, then standard input, then g's contents.
+# #   cat        Copy standard input to standard output.
+# #
+# # Report cat bugs to bug-coreutils@gnu.org
+# # GNU coreutils home page: <http://www.gnu.org/software/coreutils/>
+# # General help using GNU software: <http://www.gnu.org/gethelp/>
+# # For complete documentation, run: info coreutils 'cat invocation'
+# "
+#
+# 格式说明：
+# <${optionType}>_<${optionItem}>[,_${optionItemAliases}]_<###>_[${optionDescription}]
+# optionType: 选项的类型，要顶格
+#     + 值选项(选填)，例如："tail -n 1000 console.out" 中 1000 是 -n 的值
+#     * 值选项(必填)
+#     ? 开关选项，例如："ls -a ./" 中 -a 是开关选项
+#     # 描述信息，只用于显示，无其它作用
+# optionItem: 通常是以“-”开头的参数名（简写），如："tail -n 1000 console.out" 中 -n 是参数名
+# optionItemAliases: 经常作为 optionItem 的别名，如："tail -n 1000 console.out" 也可以写成 "tail --lines=1000 console.out"
+# optionDescription: 对参数项的描述
+# 注意：
+#     optionItem 和 optionItemAliases 可以简略其一，也可调换位置
+#     <> 表示必须，[] 表示可选，_ 表示空格（1或多个）
+#
+# 以上示例调用 AH_PrintArgs 输出结果为：
+# Usage: cat [OPTION]... [FILE]...
+# Concatenate FILE(s), or standard input, to standard output.
+#
+#   -A, --show-all           equivalent to -vET
+#   -b, --number-nonblank    number nonempty output lines
+#   -e                       equivalent to -vE
+#   -E, --show-ends          display $ at end of each line
+#   -n, --number             number all output lines
+#   -s, --squeeze-blank      suppress repeated empty output lines
+#   -t                       equivalent to -vT
+#   -T, --show-tabs          display TAB characters as ^I
+#   -u                       (ignored)
+#   -v, --show-nonprinting   use ^ and M- notation, except for LFD and TAB
+#       --help               display this help and exit
+#       --version            output version information and exit
+#
+# With no FILE, or when FILE is -, read standard input.
+#
+# Examples:
+#   cat f - g  Output f's contents, then standard input, then g's contents.
+#   cat        Copy standard input to standard output.
+#
+# Report cat bugs to bug-coreutils@gnu.org
+# GNU coreutils home page: <http://www.gnu.org/software/coreutils/>
+# General help using GNU software: <http://www.gnu.org/gethelp/>
+# For complete documentation, run: info coreutils 'cat invocation'
+
+# --------------------------------------------------------------------
+# [AH_ShowHelp]
+# 
+# 显示帮助信息的参数项是什么，例如：
+# AH_ShowHelp="--help" 配置后，输入 "cmd --help" 显示指令 "cmd" 的帮助信息
+# 需要确保的是 AH_ArgsMeta 有 一个同名的开关项，如：
+# "? --help ### display this help and exit "
+
+# --------------------------------------------------------------------
+# [AH_DefaultHelpMeta]
+# 
+# 启用默认的帮助信息（在AH_ArgsMeta中追加），例如：
+# AH_DefaultHelpMeta="yes" 配置后，输入 "cmd --help" 将会追加显示默认的帮助
+# 信息
+
+# --------------------------------------------------------------------
+# [AH_ShowVersion]
+#
+# 显示版本信息的参数项是什么，例如：
+# AH_ShowVersion="--version" 配置后，输入 "cmd --version" 显示指令 "cmd" 
+# 的版本信息(AH_VersionInfo)
+
+# --------------------------------------------------------------------
+# [AH_VersionInfo]
+#
+# 指令的版本信息，例如：
+# AH_VersionInfo="version: 1.0.1, copyright by yaoming (2019)"
+
+# --------------------------------------------------------------------
+# [AH_StrictParam]
+# 
+# 是否开启严格参数(yes|no)，例如：
+# AH_StrictParam="yes" 将会视“-”开头的参数为非法，这样可以避免写错选项名称
+
+# --------------------------------------------------------------------
+# [AH_LeastParamCount]
+# 
+# 参数个数下限(0|N)，例如：
+# AH_LeastParamCount=0 表示不限参数数量，n表示至少需要输入n个参数
+
+######################################################################
+# 引入外部依赖
+######################################################################
+
+. $(dirname $BASH_SOURCE)/array-utils
+
+######################################################################
+### 声明 和 程序主体
+######################################################################
+if [ -n "$AHC_NULL" ]; then
+    echo "Can not source args-helper file more than 2 times." >&2
+    exit 1     
+fi
+
+readonly AHC_NULL="_AHC_NULL_"
+
+# 命令入参
+ahv_inputArgs=()
+
+# 参数的默认值
+ahv_argsMeta="helps:
+?   --help      ### display this help and exit
+?   --version   ### output version information and exit"
+ahv_showHelp=""
+ahv_showVersion=""
+ahv_versionInfo="no version information"
+ahv_strictParam="yes"
+ahv_leastParamCount=0
+
+# 选项 和 值
+declare -A ahv_options=()
+
+# 开关列表
+declare -A ahv_switchs=()
+
+# 所有 短选项 和 长选项 的绑定关系
+# -A=--show-all 正向绑定
+# --show-all=-A 反向绑定
+# -e            只有短选项
+# --help        只有长选项
+declare -A ahv_metaOptions=()
+
+# 选项的名称列表
+ahv_metaOptionNames=()
+
+# 选项类型
+# -e=?          开关（没有值）
+# -n=+          选项（必填）
+# --help=-      选项（选填）
+declare -A ahv_metaOptionType=()
+
+# 选项的说明
+declare -A ahv_metaOptionDesc=()
+
+# 选项是否是必填项
+declare -A ahv_metaOptionMust=()
+
+
+###-------------------------------------------------------------------
+# 去除字符串前后的空格
+###-------------------------------------------------------------------
+function ahf_trim() {
+    echo " $1 " | sed -e 's/^[ \t]*//g' | sed -e 's/[ \t]*$//g'
+}
+
+###-------------------------------------------------------------------
+# 根据参数的描述信息，初始化参数
+###-------------------------------------------------------------------
+# 输入的参数
+# __metaDocument
+#---------------------------------------------------------------------
+# 运行后 将填充以下变量
+# ahv_options ahv_switchs ahv_metaOptions ahv_metaOptionType ahv_metaOptionDesc
+#---------------------------------------------------------------------
+function ahf_initArgsMeta() {
+    local aht_lines=()
+    eval $( printf "$ahv_argsMeta" | cat | sed s/\\\"/\\\\\"/g | awk '{ printf("aht_lines[${#aht_lines[*]}]=\"%s\"\n",$0); }' )
+
+    for((i=0;i<=${#aht_lines[*]};i++)); do 
+        local aht_line="${aht_lines[$i]}"
+        # echo "$aht_line"
+        
+        local aht_optionType="${aht_line%% *}"
+        local aht_lineElse="${aht_line#* }"
+        if [ "$aht_optionType" == "#" ]; then
+            continue;
+        fi
+
+        local aht_optionSec="${aht_lineElse%%###*}"
+        local aht_optionDesc="${aht_lineElse#*###}"
+
+        local aht_option=`ahf_trim "${aht_optionSec%%,*}"`
+        local aht_optionAliases=`ahf_trim "${aht_optionSec#*,}"`
+
+        if [ "$aht_option" == "$aht_optionAliases" ]; then 
+            aht_optionAliases=""
+        fi
+
+        if [ -n "$aht_option" ]; then
+            ahv_metaOptions["$aht_option"]="$aht_optionAliases"
+            ahv_metaOptionType["$aht_option"]="$aht_optionType"
+            ahv_metaOptionDesc["$aht_option"]="$aht_optionDesc"
+            ahv_metaOptionNames[${#ahv_metaOptionNames[*]}]="$aht_option"
+             # 是否必填
+            if [ "*" = "$aht_optionType" ]; then
+                ahv_metaOptionMust["$aht_option"]="yes"
+            fi
+        fi
+
+        if [ -n "$aht_optionAliases" ]; then
+            ahv_metaOptions["$aht_optionAliases"]="$aht_option"
+            ahv_metaOptionType["$aht_optionAliases"]="$aht_optionType"
+            ahv_metaOptionNames[${#ahv_metaOptionNames[*]}]="$aht_optionAliases"
+        fi
+
+    done
+}
+
+###-------------------------------------------------------------------
+# 从参数中找出指定的参数并移除(重复情况下取最后一个)
+###-------------------------------------------------------------------
+# 输入值
+# _name_=""           # 指定的参数名称
+#---------------------------------------------------------------------
+# 输出值
+# _return_=$AHC_NULL  # 选项的值
+#---------------------------------------------------------------------
+function avf_findOutOption() {
+    local aht_returnNext=0
+    local aht_idx=-1
+    _return_=$AHC_NULL
+    for item in "${ahv_inputArgs[@]}"; do 
+        aht_idx=$[$aht_idx + 1]
+        # 处理 -n value 类型的参数
+        if [ $aht_returnNext -eq 1 ]; then
+            aht_returnNext=0
+            # 判断参数值是不是另一个参数名，如果是，则不取值
+            if [ 'yes' != $(ARR_indexOf "${ahv_metaOptionNames[*]}" "$item") ]; then
+                _return_="$item"
+                ahv_inputArgs[$aht_idx]=""
+            fi
+            continue
+        fi
+        if [ "$item" = "$_name_" ]; then
+            aht_returnNext=1
+            ahv_inputArgs[$aht_idx]=""
+            continue
+        fi
+        # 处理 --name=value 的参数
+        local aht_key=${item%%=*}
+        local aht_value=${item#*=}
+        if [ "$aht_key" = "$_name_" ]; then
+            _return_="$aht_value"
+            ahv_inputArgs[$aht_idx]=""
+            continue
+        fi
+    done
+}
+
+###-------------------------------------------------------------------
+# 从参数中找出指定的开关并移除(移除所有重复的))
+###-------------------------------------------------------------------
+# 输入值
+# _name_=""         # 指定的参数名称
+#---------------------------------------------------------------------
+# 输出值
+# _return_=0        # 0 表示未找到，+n表示找到n个
+#---------------------------------------------------------------------
+function ahf_findOutSwitch() {
+    local aht_idx=-1
+    local aht_count=0
+    for item in "${ahv_inputArgs[@]}"; do 
+        aht_idx=$[$aht_idx + 1]
+        if [ "$item" = "$_name_" ]; then
+            ahv_inputArgs[$aht_idx]=""
+            aht_count=$[$aht_count + 1]
+            continue
+        fi
+    done
+    _return_=$aht_count
+}
+
+###-------------------------------------------------------------------
+# 输出提示信息
+###-------------------------------------------------------------------
+# $1: 提示信息
+#---------------------------------------------------------------------
+function AH_PrintInfo() {
+    if [ -n "$1" ]; then
+        printf "$1\n"
+    fi
+    if [ -n "$ahv_showHelp" ]; then
+        printf "Try '$0 $ahv_showHelp' for more information.\n"
+    fi
+}
+
+###-------------------------------------------------------------------
+# 输出帮助信息
+###-------------------------------------------------------------------
+# $1: 提示信息
+#---------------------------------------------------------------------
+function AH_PrintHelp() {
+    if [ -n "$1" ]; then
+        printf "$1\n"
+    fi
+    printf "$ahv_argsMeta" | cat | awk '{  printf($0"\n"); }' | egrep -o ".*" | sed s/^[+\?\#\*]//g | sed s/^[\ ]//g | sed s/\#\#\#//g 
+}
+
+###-------------------------------------------------------------------
+# 输出版本
+###-------------------------------------------------------------------
+function AH_PrintVersion() {
+    printf "$ahv_versionInfo\n";
+}
+
+###-------------------------------------------------------------------
+# 输出参数
+###-------------------------------------------------------------------
+function AH_PrintArgs() {
+    echo AH_OPTIONS:
+    for aht_key in "${!AH_OPTIONS[@]}"; do
+        echo "  \${AH_OPTIONS['$aht_key']} : ${AH_OPTIONS["$aht_key"]}"
+    done
+
+    echo AH_SWITCHS:
+    for aht_key in "${!AH_SWITCHS[@]}"; do
+        echo "  \${AH_SWITCHS['$aht_key']} : ${AH_SWITCHS["$aht_key"]}"
+    done
+
+    echo AH_PARAMS:
+    local aht_idx=0
+    for aht_item in "${AH_PARAMS[@]}"; do
+        echo "  \${AH_PARAMS[$aht_idx]} : $aht_item"
+        aht_idx=$[$aht_idx + 1]
+    done
+}
+
+######################################################################
+### 输入
+######################################################################
+
+ahv_inputArgs=() # 命令的参数
+{ # 参数清洗
+    for((i=1;i<=$#;i++)); do
+        eval 'aht_tmp=${'$i'}'
+        ahv_inputArgs[${#ahv_inputArgs[@]}]="$aht_tmp"
+    done
+}
+
+# 配置参数
+if [ -n "$AH_ArgsMeta" ]; then
+    if [ "yes" = "$AH_DefaultHelpMeta" ]; then
+        ahv_argsMeta="$AH_ArgsMeta\n$ahv_argsMeta"
+        ahv_showHelp="--help"
+        ahv_showVersion="--version"
+    else
+        ahv_argsMeta="$AH_ArgsMeta"
+    fi
+fi
+if [ -n "$AH_ShowHelp" ]; then
+    ahv_showHelp="$AH_ShowHelp"
+fi
+if [ -n "$AH_ShowVersion" ]; then
+    ahv_showVersion="$AH_ShowVersion"
+fi
+if [ -n "$AH_VersionInfo" ]; then
+    ahv_versionInfo="$AH_VersionInfo"
+fi
+if [ -n "$AH_StrictParam" ]; then
+    ahv_strictParam="$AH_StrictParam"
+fi
+if [ -n "$AH_LeastParamCount" ]; then
+    ahv_leastParamCount="$AH_LeastParamCount"
+fi
+
+######################################################################
+### 处理
+######################################################################
+
+{ # call ahf_initArgsMeta()
+    ahf_initArgsMeta "$ahv_argsMeta"
+}
+for avt_key in "${!ahv_metaOptions[@]}"; do
+    avt_keyAliases="${ahv_metaOptions["$avt_key"]}"
+    if [ "+" = "${ahv_metaOptionType["$avt_key"]}" -o "*" = "${ahv_metaOptionType["$avt_key"]}" ]; then
+        { # avf_findOutOption()
+            # @input
+            _name_="$avt_key";
+            _return_=$AHC_NULL;
+            # @call
+            avf_findOutOption
+            # @return
+            avt_val="$_return_"
+        }
+        if [ "$AHC_NULL" = "$avt_val" ]; then 
+            continue;
+        fi
+        ahv_options["$avt_key"]="$avt_val"
+        if [ -n "$avt_keyAliases" ]; then
+            ahv_options["$avt_keyAliases"]="$avt_val"
+        fi
+    elif [ "?" = "${ahv_metaOptionType["$avt_key"]}" ]; then
+        { # call ahf_findOutSwitch()
+            # @input
+            _name_="$avt_key"; 
+            _return_=0;
+            # @call
+            ahf_findOutSwitch
+            # @return
+            avt_val=$_return_
+        }
+        if [ 0 -eq $avt_val ]; then 
+            continue;
+        fi
+        ahv_switchs["$avt_key"]="$avt_val"
+        if [ -n "$avt_keyAliases" ]; then
+            ahv_switchs["$avt_keyAliases"]="$avt_val"
+        fi
+    fi
+done
+
+# for aht_key in ${!ahv_metaOptions[*]}; do
+#     echo 1====== ">$aht_key<" : ">${ahv_metaOptions["$aht_key"]}<"
+# done
+
+# echo
+# for aht_key in ${!ahv_metaOptionType[*]}; do
+#     echo 2====== ">$aht_key<" : ">${ahv_metaOptionType["$aht_key"]}<"
+# done
+
+# echo
+# for aht_key in ${!ahv_metaOptionDesc[*]}; do
+#     echo 3====== ">$aht_key<" : ">${ahv_metaOptionDesc["$aht_key"]}<"
+# done
+
+######################################################################
+### 输出变量
+######################################################################
+
+declare -A AH_OPTIONS=()  # [字典类型] 参数项 和 值
+declare -A AH_SWITCHS=()  # [字典类型] 开关项 和 次数
+declare -a AH_PARAMS=()   # [数组类型] 参数值
+
+for aht_key in "${!ahv_options[@]}"; do
+    AH_OPTIONS["$aht_key"]="${ahv_options["$aht_key"]}"
+done
+
+for aht_key in "${!ahv_switchs[@]}"; do
+    AH_SWITCHS["$aht_key"]="${ahv_switchs["$aht_key"]}"
+done
+
+for aht_item in "${ahv_inputArgs[@]}"; do
+    if [ -n "$aht_item" ]; then
+        AH_PARAMS[${#AH_PARAMS[@]}]="$aht_item"
+    fi
+done
+
+readonly AH_OPTIONS
+readonly AH_SWITCHS
+readonly AH_PARAMS
+
+######################################################################
+### 输出信息
+######################################################################
+
+if [ -n "${AH_SWITCHS["$ahv_showHelp"]}" ]; then
+    AH_PrintHelp 
+    exit 0;
+fi
+
+if [ -n "${AH_SWITCHS["$ahv_showVersion"]}" ]; then
+    AH_PrintVersion
+    exit 0;
+fi
+
+# 严格模式下的检查
+if [ "yes" = "$ahv_strictParam" ]; then
+    for aht_item in "${AH_PARAMS[@]}"; do
+        if [[ "$aht_item" == -* ]]; then
+            AH_PrintInfo "Unknown option '$aht_item'" >&2
+            exit 1
+        fi
+    done
+fi
+
+# 检查参数数量是否满足
+if [ 0 != $ahv_leastParamCount ]; then
+    if [ ${#AH_PARAMS[@]} -lt $ahv_leastParamCount ]; then 
+        AH_PrintInfo "Param count less then $ahv_leastParamCount" >&2
+        exit 1
+    fi
+fi
+
+# 检查是否有必填选项缺失
+ahv_mustInfo=""
+for aht_key in "${ahv_metaOptionNames[@]}"; do
+    if [ -n "${ahv_metaOptionMust["$aht_key"]}" -a -z "${AH_OPTIONS["$aht_key"]}" ]; then
+        if [ -n "${ahv_metaOptions["$aht_key"]}" ]; then
+            ahv_mustInfo="$ahv_mustInfo\n  $aht_key, ${ahv_metaOptions["$aht_key"]}"
+        else
+            ahv_mustInfo="$ahv_mustInfo\n  $aht_key"
+        fi
+    fi
+done
+if [ -n "$ahv_mustInfo" ]; then
+    AH_PrintInfo "Options are necessary: $ahv_mustInfo" >&2
+    exit 1
+fi
