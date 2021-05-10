@@ -1,0 +1,109 @@
+#!/bin/sh
+
+# ###########################################################
+# 使用前配置 
+AH_ArgsMeta="
+# Usage: bee-node <cmd> <nodeid> [OPTIONS]...
+# Args:
+#   cmd:                    ### {start|stop|restart|console}
+#   nodeid                  ### nodeid nust be in [000~999]
+# OPTIONS:
+?       --help              ### display this help and exit
+?       --version           ### output version information and exit
+"  # 参数元数据配置
+AH_ShowHelp="--help"  # 输出帮助信息的指令参数(可省略)
+AH_DefaultHelpMeta="no"  # 因为AH_ArgsMeta中已经配置了--help和--version，无须使用默认配置
+AH_ShowVersion="--version"  # 输出版本信息的指令参数（可省略）
+AH_VersionInfo="version: 0.0.1, copyright by yaoming (2021)"  # 自定义版本信息（可省略）
+AH_StrictParam="no"  # 不使用严格参数（支持以"-"开头的参数）
+AH_LeastParamCount=0  # 参数数量不得少于1个（0表示不验证最少数量）
+
+# ###########################################################
+# 引入工具文件（这里按实际目录结构引入）
+source `dirname $0`/../shell-utils/lib/args-helper 
+source /etc/profile
+
+# 用户检测
+if [ `whoami` != "root" ]; then
+    echo "Must run by root user."
+    exit 1
+fi
+
+# 环境变量检测
+if [ -z "$BEE_WORK_DIR" ]; then
+    source /etc/profile
+    if [ -z "$BEE_WORK_DIR" ]; then
+        echo "BEE_WORK_DIR has not in /etc/profile, pleash install bee at first."
+        exit 1
+    fi
+fi
+
+# 获得参数
+cmd="${AH_PARAMS[0]}"
+nodeid=""
+nodepath=""
+screenid=""
+
+# 进入工作目录
+cd $BEE_WORK_DIR
+
+function get_node_id_path() {
+    nodeid="${AH_PARAMS[1]}"
+    if [ -z "$nodeid" ]; then
+        echo "must input 'nodeid' to init."
+        exit 1
+    fi
+    if [ -z "$(echo $nodeid | egrep '^[0-9]{3}$')" ]; then
+        echo "'nodeid' nust be a number [000~999]."
+        exit 1
+    fi
+    nodepath="$BEE_WORK_DIR/nodes/$nodeid"
+    screenid="bee$nodeid"
+}
+
+function start() {
+    get_node_id_path
+    if [ ! -f "$nodepath/bee.yaml" ]; then
+        mkdir -p $nodepath
+        echo """
+            verbosity: 5
+            data-dir: $nodepath
+            api-addr: :1${nodeid}3
+            p2p-addr: :1${nodeid}4
+            password-file: $nodepath/passwd
+            debug-api-addr: 127.0.0.1:1${nodeid}5
+            debug-api-enable: true
+            clef-signer-enable: false
+            swap-endpoint: https://rpc.slock.it/goerli
+            swap-enable: true
+        """ > $nodepath/bee.yaml
+        echo "13+46-79=0" > $nodepath/passwd
+    fi
+    screen -S "$screenid" bee start --config=$nodepath/bee.yaml
+}
+
+function stop() {
+    get_node_id_path
+    pid=$(ps -ef | grep "bee start --config=$nodepath/bee.yaml" | grep -v "screen" | grep -v "grep" | awk '{print $2}')
+    if [ -n "$pid" ]; then
+        kill $pid
+        echo bee node [$nodeid] has down.
+    else
+        echo bee node [$nodeid] not started.
+    fi
+}
+
+if [ $cmd == "start" ]; then
+    start
+elif [ $cmd == "stop" ]; then
+    stop
+elif [ $cmd == "restart" ]; then
+    stop
+    sleep 3
+    start
+elif [ $cmd == "console" ]; then
+    screen -x "$screenid"
+else
+    echo "cmd must in {start|stop|restart|console}"
+fi
+
