@@ -1,0 +1,21 @@
+#!/bin/sh
+
+
+[]
+
+mkdir /data/bee/bee01
+mv /etc/bee/bee.yaml /data/bee/bee.yaml.bak
+
+echo """
+verbosity: 5
+data-dir: /data/bee/bee01
+api-addr: :1633
+p2p-addr: :1634
+password-file: /data/bee/bee01/passwd
+debug-api-addr: 127.0.0.1:1635
+debug-api-enable: true
+clef-signer-endpoint: /var/lib/bee-clef/clef.ipc
+clef-signer-enable: true
+swap-endpoint: https://rpc.slock.it/goerli
+swap-enable: true
+""" > /data/bee/bee01/bee.yaml
