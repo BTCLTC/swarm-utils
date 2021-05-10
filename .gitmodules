@@ -1,0 +1,3 @@
+[submodule "shell-utils"]
+	path = shell-utils
+	url = git@github.com:yymmiinngg/shell-utils.git
