@@ -107,4 +107,3 @@ elif [ "$cmd" == "console" ]; then
 else
     echo "cmd must in {start|stop|restart|console}"
 fi
-
