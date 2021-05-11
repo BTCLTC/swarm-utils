@@ -3,7 +3,7 @@
 # ###########################################################
 # 使用前配置 
 AH_ArgsMeta="
-# Usage: bee-node <cmd> <nodeid> [OPTIONS]...
+# Usage: beenode <cmd> <nodeid> [OPTIONS]...
 # Args:
 #   cmd:                    ### {start|stop|restart|console}
 #   nodeid                  ### nodeid nust be in [000~999]
@@ -93,15 +93,16 @@ function stop() {
     fi
 }
 
-if [ $cmd == "start" ]; then
+if [ "$cmd" == "start" ]; then
     start
-elif [ $cmd == "stop" ]; then
+elif [ "$cmd" == "stop" ]; then
     stop
-elif [ $cmd == "restart" ]; then
+elif [ "$cmd" == "restart" ]; then
     stop
     sleep 3
     start
-elif [ $cmd == "console" ]; then
+elif [ "$cmd" == "console" ]; then
+    get_node_id_path
     screen -x "$screenid"
 else
     echo "cmd must in {start|stop|restart|console}"
