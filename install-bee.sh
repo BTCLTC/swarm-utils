@@ -6,7 +6,7 @@ AH_ArgsMeta="
 # Usage: install.sh [OPTIONS]
 # Auto install the bee into system.
 # OPTIONS:
-#   -w, bee-work-dir        ### bee working place, default is '/data/bee'
+#   -w, --bee-work-dir      ### bee working place, default is '/data/bee'
 ?       --help              ### display this help and exit
 ?       --version           ### output version information and exit
 "  # 参数元数据配置
@@ -34,6 +34,11 @@ cd /tmp/bee
 echo "Install tools ... "
 yum install -y screen nc vim telnet wget 2&>1 > /dev/null
 wget http://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm 2&>1 > /dev/null
+ccc="$?"
+if [ "$ccc" != "0" ]; then 
+    echo Download epel.rpm error
+    exit 1
+fi
 rpm -ivh epel-release-latest-7.noarch.rpm 2&>1 > /dev/null
 rm -f epel-release-latest-7.noarch.rpm 2&>1 > /dev/null
 yum install -y jq 2&>1 > /dev/null

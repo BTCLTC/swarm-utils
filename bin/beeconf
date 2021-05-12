@@ -3,9 +3,9 @@
 # ###########################################################
 # 使用前配置 
 AH_ArgsMeta="
-# Usage: beenode <cmd> <nodeid> [OPTIONS]...
+# Usage: beeconf <cmd> <nodeid> [OPTIONS]...
 # Args:
-#   cmd:                    ### run { start | stop | restart | console | config }
+#   cmd:                    ### run { start | stop | restart | console }
 #   nodeid                  ### nodeid nust be in [000~999]
 # OPTIONS:
 ?   -h, --help              ### display this help and exit
@@ -93,11 +93,6 @@ function stop() {
     fi
 }
 
-function config() {
-    get_node_id_path
-    cat $nodepath/bee.yaml
-}
-
 if [ "$cmd" == "start" ]; then
     start
 elif [ "$cmd" == "stop" ]; then
@@ -109,8 +104,6 @@ elif [ "$cmd" == "restart" ]; then
 elif [ "$cmd" == "console" ]; then
     get_node_id_path
     screen -x "$screenid"
-elif [ "$cmd" == "console" ]; then
-    config
 else
-    echo "cmd must in { start | stop | restart | console | config }"
+    echo "cmd must in {start|stop|restart|console}"
 fi
