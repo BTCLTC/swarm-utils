@@ -32,16 +32,16 @@ cd /tmp/bee
 
 # 安装工具
 echo "Install tools ... "
-yum install -y screen nc vim telnet wget 2&>1 > /dev/null
-wget http://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm 2&>1 > /dev/null
+yum install -y screen nc vim telnet wget > /dev/null 2>&1
+wget http://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm > /dev/null 2>&1
 ccc="$?"
 if [ "$ccc" != "0" ]; then 
     echo Download epel.rpm error
     exit 1
 fi
-rpm -ivh epel-release-latest-7.noarch.rpm 2&>1 > /dev/null
-rm -f epel-release-latest-7.noarch.rpm 2&>1 > /dev/null
-yum install -y jq 2&>1 > /dev/null
+rpm -ivh epel-release-latest-7.noarch.rpm > /dev/null 2>&1
+rm -f epel-release-latest-7.noarch.rpm > /dev/null 2>&1
+yum install -y jq > /dev/null 2>&1
 
 # 安装bee
 wget https://github.com/ethersphere/bee/releases/download/v0.5.3/bee_0.5.3_amd64.rpm
