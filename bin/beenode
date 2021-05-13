@@ -109,7 +109,7 @@ elif [ "$cmd" == "restart" ]; then
 elif [ "$cmd" == "console" ]; then
     get_node_id_path
     screen -x "$screenid"
-elif [ "$cmd" == "console" ]; then
+elif [ "$cmd" == "config" ]; then
     config
 else
     echo "cmd must in { start | stop | restart | console | config }"

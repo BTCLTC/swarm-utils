@@ -6,7 +6,7 @@ AH_ArgsMeta="
 # Usage: install.sh [OPTIONS]
 # Auto install the bee into system.
 # OPTIONS:
-#   -w, --bee-work-dir      ### bee working place, default is '/data/bee'
+*   -w, --bee-work-dir      ### bee working place, like '-w /data/bee'
 ?       --help              ### display this help and exit
 ?       --version           ### output version information and exit
 "  # 参数元数据配置
