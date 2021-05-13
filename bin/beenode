@@ -61,23 +61,21 @@ function get_node_id_path() {
     screenid="bee$nodeid"
 }
 
+# file, src, dest
+function replacefile(){
+    file=$1
+    src=$(echo "$2" | sed s/"\\/"/"\\\\\/"/g)
+    dest=$(echo "$3" | sed s/"\\/"/"\\\\\/"/g)
+    sed -i s/"$src"/"$dest"/g "$file"
+} 
+
 function start() {
     get_node_id_path
-    if [ ! -f "$nodepath/bee.yaml" ]; then
+    if [ ! -f "$nodepath/bee.yaml1" ]; then
         mkdir -p $nodepath
-        echo """
-            verbosity: 5
-            data-dir: $nodepath
-            api-addr: :1${nodeid}3
-            p2p-addr: :1${nodeid}4
-            password-file: $nodepath/passwd
-            debug-api-addr: 127.0.0.1:1${nodeid}5
-            debug-api-enable: true
-            clef-signer-enable: false
-            swap-endpoint: https://rpc.slock.it/goerli
-            swap-enable: true
-        """ > $nodepath/bee.yaml
-        echo "13+46-79=0" > $nodepath/passwd
+        cp -f `dirname $0`/../conf/bee-default.yaml "$nodepath/bee.yaml"
+        replacefile "$nodepath/bee.yaml" "{{nodepath}}" "$nodepath"
+        replacefile "$nodepath/bee.yaml" "{{nodeid}}" "$nodeid"
     fi
     screen -S "$screenid" bee start --config=$nodepath/bee.yaml
 }

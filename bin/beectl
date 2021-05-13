@@ -8,7 +8,6 @@ AH_ArgsMeta="
 #   cmd:                    ### run { address | peers | balance | settlements | uncashed | cashout }
 # [cashout]
 +   -m, --min-amount        ### min amount in cashout
-#
 ?   -h, --help              ### display this help and exit
 ?   -v, --version           ### output version information and exit
 "  # 参数元数据配置
@@ -42,12 +41,6 @@ fi
 # 导入库
 source `dirname $0`/../lib/runtime_funcs.sh
 source `dirname $0`/../lib/cashout_funcs.sh
-
-PIX=10000000000000000
-# 获得参数
-cmd="${AH_PARAMS[0]}"
-
-configs=$(getRuntimeConfigFiles)
 
 function beeAddress() {
     echo "+-------+--------------------------------------------+--------------------------------------------+"
@@ -199,6 +192,11 @@ function cashoutPort() {
         fi
     done
 }
+
+# 获得参数
+cmd="${AH_PARAMS[0]}"
+PIX=10000000000000000
+configs=$(getRuntimeConfigFiles)
 
 if [ "$cmd" == "address" ]; then
     beeAddress
