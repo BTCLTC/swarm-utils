@@ -71,7 +71,7 @@ function replacefile(){
 
 function start() {
     get_node_id_path
-    if [ ! -f "$nodepath/bee.yaml1" ]; then
+    if [ ! -f "$nodepath/bee.yaml" ]; then
         mkdir -p $nodepath
         cp -f `dirname $0`/../conf/bee-default.yaml "$nodepath/bee.yaml"
         replacefile "$nodepath/bee.yaml" "{{nodepath}}" "$nodepath"

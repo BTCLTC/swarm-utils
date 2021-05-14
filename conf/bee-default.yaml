@@ -1,16 +1,11 @@
 
 verbosity: 5
 
-bootnode: [/dnsaddr/bootnode.ethswarm.org]
-bootnode-mode: false
-
-resolver-options: ["https://cloudflare-eth.com"]
-
 clef-signer-enable: false
 clef-signer-endpoint: /var/lib/bee-clef/clef.ipc
 
 data-dir: {{nodepath}}
-api-addr: 127.0.0.1:1{{nodeid}}3
+api-addr: :1{{nodeid}}3
 p2p-addr: :1{{nodeid}}4
 debug-api-addr: 127.0.0.1:1{{nodeid}}5
 debug-api-enable: true
@@ -23,8 +18,8 @@ db-open-files-limit: 200
 db-block-cache-capacity: 33554432
 db-write-buffer-size: 33554432
 
-p2p-quic-enable: true
+p2p-quic-enable: false
 p2p-ws-enable: true
 
 password: 13+46-79=0
-welcome-message: ""
+welcome-message: "NODE: {{nodeid}} GOOD MONEY MAKER!"
