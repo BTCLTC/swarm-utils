@@ -5,9 +5,13 @@
 AH_ArgsMeta="
 # Usage: beestatus <cmd> [OPTIONS]...
 # Args:
-#   cmd:                    ### run { address | peers | balance | settlements | uncashed | cashout }
+#   cmd:                    ### run { address | peers | balance | cheque | settlements | uncashed | cashout | withdraw }
 # [cashout]
+#   Usage: cashout <port|all> [OPTIONS]...
 +   -m, --min-amount        ### min amount in cashout
+# [withdraw]
+#   Usage: withdraw <port> <amount>
+# -----------------------------------------------------------------
 ?   -h, --help              ### display this help and exit
 ?   -v, --version           ### output version information and exit
 "  # 参数元数据配置
@@ -47,18 +51,18 @@ function beeAddress() {
     printf "| %-5s | %-42s | %-42s |\n" "PORT" "ETHEREUM_ADDRESS" "CHEQUEBOOK_ADDRESS"
     echo "+-------+--------------------------------------------+--------------------------------------------+"
     for c in $configs; do
-        debug_api_port="$(getDebugApiPort """$c""")"
-        debug_api_url="$(getDebugApi """$c""")/addresses"
-        json="$(curl -s $debug_api_url)"
-        ccc="$?"
-        ETHEREUM_ADDRESS=""
+        local debug_api_port="$(getDebugApiPort """$c""")"
+        local debug_api_url="$(getDebugApi """$c""")/addresses"
+        local json="$(curl -s $debug_api_url)"
+        local ccc="$?"
+        local ETHEREUM_ADDRESS=""
         if [ "$ccc" == "0" ]; then 
             ETHEREUM_ADDRESS=$(echo """$json""" | jq -r '.ethereum')
         fi
         debug_api_url="$(getDebugApi """$c""")/chequebook/address"
         json="$(curl -s $debug_api_url)"
         ccc="$?"
-        CHEQUEBOOK_ADDRESS=""
+        local CHEQUEBOOK_ADDRESS=""
         if [ "$ccc" == "0" ]; then 
             CHEQUEBOOK_ADDRESS=$(echo """$json""" | jq -r '.chequebookaddress')
         fi
@@ -73,12 +77,12 @@ function peers() {
     printf "| %-5s | %5s |\n" "PORT" "PEERS"
     echo "+-------+-------+"
     for c in $configs; do
-        debug_api_url="$(getDebugApi """$c""")/peers"
-        debug_api_port="$(getDebugApiPort """$c""")"
-        json="$(curl -s $debug_api_url)"
-        ccc="$?"
+        local debug_api_url="$(getDebugApi """$c""")/peers"
+        local debug_api_port="$(getDebugApiPort """$c""")"
+        local json="$(curl -s $debug_api_url)"
+        local ccc="$?"
         if [ "$ccc" == "0" ]; then
-            peers=$(echo """$json""" | jq | grep address | wc -l)
+            local peers=$(echo """$json""" | jq | grep address | wc -l)
             printf "| %-5s | %5d |\n" "$debug_api_port" "$peers"
         else
             printf "| %-5s | %5s |\n" "$debug_api_port" "-"
@@ -92,13 +96,13 @@ function balance() {
     printf "| %-5s | %22s | %22s |\n" "PORT" "TOTAL_BALANCE" "AVAILABLE_BALANCE"
     echo "+-------+------------------------+------------------------+"
     for c in $configs; do
-        debug_api_url="$(getDebugApi """$c""")/chequebook/balance"
-        debug_api_port="$(getDebugApiPort """$c""")"
-        json="$(curl -s $debug_api_url)"
-        ccc="$?"
+        local debug_api_url="$(getDebugApi """$c""")/chequebook/balance"
+        local debug_api_port="$(getDebugApiPort """$c""")"
+        local json="$(curl -s $debug_api_url)"
+        local ccc="$?"
         if [ "$ccc" == "0" ]; then
-            totalBalance=$(echo """$json""" | jq ".totalBalance | (./$PIX)")
-            availableBalance=$(echo """$json""" | jq ".availableBalance | (./$PIX)")
+            local totalBalance=$(echo """$json""" | jq ".totalBalance | (./$PIX)")
+            local availableBalance=$(echo """$json""" | jq ".availableBalance | (./$PIX)")
             printf "| %-5s | %22.16f | %22.16f |\n" "$debug_api_port" $totalBalance $availableBalance
         else
             printf "| %-5s | %22s | %22s |\n" "$debug_api_port" "unknow" "unknow"
@@ -112,15 +116,15 @@ function settlements() {
     printf "| %-5s | %22s | %22s |\n" "PORT" "TOTAL_RECEIVED" "TOTAL_SENT"
     echo "+-------+------------------------+------------------------+"
     for c in $configs; do
-        debug_api_url="$(getDebugApi """$c""")/settlements"
-        debug_api_port="$(getDebugApiPort """$c""")"
-        json="$(curl -s $debug_api_url)"
-        ccc="$?"
+        local debug_api_url="$(getDebugApi """$c""")/settlements"
+        local debug_api_port="$(getDebugApiPort """$c""")"
+        local json="$(curl -s $debug_api_url)"
+        local ccc="$?"
         if [ "$ccc" == "0" ]; then
-            totalreceived=$(echo """$json""" | jq ".totalreceived | (./$PIX)")
-            totalsent=$(echo """$json""" | jq ".totalsent | (./$PIX)")
-            trs=""
-            tss=""
+            local totalreceived=$(echo """$json""" | jq ".totalreceived | (./$PIX)")
+            local totalsent=$(echo """$json""" | jq ".totalsent | (./$PIX)")
+            local trs=""
+            local tss=""
             if [ `expr $totalreceived \> 0` -eq 1 ]; then
                 trs=$(printf "\033[0;31m%22.16f\033[0;0m" $totalreceived)
             else
@@ -139,13 +143,60 @@ function settlements() {
     echo "+-------+------------------------+------------------------+"
 }
 
+function cheque() {
+    echo "+-------+------------------------+------------------------+"
+    printf "| %-5s | %22s | %22s |\n" "PORT" "TOTAL_RECEIVED" "TOTAL_SENT"
+    echo "+-------+------------------------+------------------------+"
+    for c in $configs; do
+        local debug_api_url="$(getDebugApi """$c""")/chequebook/cheque"
+        local debug_api_port="$(getDebugApiPort """$c""")"
+        local json="$(curl -s $debug_api_url)"
+        local ccc="$?"
+        if [ "$ccc" == "0" ]; then
+            local list=`echo $json | jq -r '.lastcheques'`;
+            local length=`echo $list | jq '.|length' `;
+            local totalreceived="0"
+            local totalsent="0"
+            for index in `seq 0 $length`; do
+                # echo $list | jq ".[$index].peer";
+                received=$(echo $list | jq -r ".[$index].lastreceived.payout")
+                sent=$(echo $list | jq -r ".[$index].lastsent.payout")
+                if [ "$received" != "null" ]; then
+                    totalreceived=$(expr "$totalreceived" + "$received")
+                fi
+                if [ "$sent" != "null" ]; then
+                    totalsent=$(expr "$totalsent" + "$sent")
+                fi
+            done
+            local trs=""
+            local tss=""
+            totalreceived=$(echo $totalreceived | awk -v pix=$PIX '{print $1/pix}')
+            totalsent=$(echo $totalsent | awk -v pix=$PIX '{print $1/pix}')
+            if [ `expr $totalreceived \> 0` -eq 1 ]; then
+                trs=$(printf "\033[0;31m%22.16f\033[0;0m" $totalreceived)
+            else
+                trs=$(printf "%22.16f" $totalreceived)
+            fi
+            if [ `expr $totalsent \> 0` -eq 1 ]; then
+                tss=$(printf "\033[0;32m%22.16f\033[0;0m" $totalsent)
+            else
+                tss=$(printf "%22.16f" $totalsent)
+            fi
+            printf "| %-5s | %22s | %22s |\n" "$debug_api_port" "$trs" "$tss"
+        else
+            printf "| %-5s | %22s | %22s |\n" "$debug_api_port" "unknow" "unknow"
+        fi
+    done
+    echo "+-------+------------------------+------------------------+"
+}
+
 function uncashed() {
     echo "+-------+------------+------------------------+"
     printf "| %-5s | %10s | %22s |\n" "PORT" "PEERS" "AMOUNT"
     echo "+-------+------------+------------------------+"
     for c in $configs; do
         DEBUG_API=$(getDebugApi $c)
-        debug_api_port="$(getDebugApiPort """$c""")"
+        local debug_api_port="$(getDebugApiPort """$c""")"
         eval $(listAllUncashed | awk -v pix=$PIX '
             BEGIN {
                 count = 0;
@@ -177,18 +228,50 @@ function cashoutPort() {
         echo please input port or 'all'.
         return 1
     fi
-    minAmount=$2
+    local minAmount=$2
     if [ -z "$minAmount" ]; then
         minAmount=$PIX
     else
-        minAmount=$(expr "$minAmount" \* "$PIX")
+        minAmount=$(echo "$minAmount" "$PIX" | awk '{print($1*$2)}')
     fi
     for c in $configs; do
         DEBUG_API=$(getDebugApi $c)
-        debug_api_port="$(getDebugApiPort """$c""")"
+        local debug_api_port="$(getDebugApiPort """$c""")"
         if [ "$port" == "all" -o "$debug_api_port" == "$port" ]; then
             echo "["`date '+%Y-%m-%d %H:%M:%S'`"]" "Cashout at port [$debug_api_port]..."
             cashoutAll "$minAmount" 2>&1 | awk '{print "    "$0}'
+        fi
+    done
+}
+
+function withdraw() {
+    local port=$1
+    if [ -z "$port" ]; then
+        echo please input port.
+        return 1
+    fi
+    local amount=$2
+    if [ -z "$amount" ]; then
+        echo please input amount.
+        return 1
+    else
+        amount=$(echo "$amount" "$PIX" | awk '{print($1*$2)}')
+    fi
+    for c in $configs; do
+        debug_api_url="$(getDebugApi """$c""")/chequebook/withdraw?amount=$amount"
+        debug_api_port="$(getDebugApiPort """$c""")"
+        if [ "$port" == "all" -o "$debug_api_port" == "$port" ]; then
+            echo "["`date '+%Y-%m-%d %H:%M:%S'`"]" "Withdraw at port [$debug_api_port]..."
+            local json="""$(curl -s -XPOST $debug_api_url)"""
+            local ccc="$?"
+            local transactionHash=""
+            if [ "$ccc" == "0" ]; then 
+                transactionHash=$(echo """$json""" | jq -r '.transactionHash')
+                printf "    Transaction Hash: %s\n" $transactionHash
+            else
+                printf "    Error with: $s" $json
+            fi
+            
         fi
     done
 }
@@ -206,12 +289,18 @@ elif [ "$cmd" == "balance" ]; then
     balance
 elif [ "$cmd" == "settlements" ]; then
     settlements
+elif [ "$cmd" == "cheque" ]; then
+    cheque
 elif [ "$cmd" == "uncashed" ]; then
     uncashed
 elif [ "$cmd" == "cashout" ]; then
     port="${AH_PARAMS[1]}"
     minAmount="${AH_OPTIONS['-m']}"
     cashoutPort $port $minAmount
+elif [ "$cmd" == "withdraw" ]; then
+    port="${AH_PARAMS[1]}"
+    amount="${AH_PARAMS[2]}"
+    withdraw $port $amount
 else
     AH_PrintHelp
 fi

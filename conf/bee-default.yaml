@@ -1,7 +1,7 @@
 
 verbosity: 5
 
-clef-signer-enable: false
+clef-signer-enable: true
 clef-signer-endpoint: /var/lib/bee-clef/clef.ipc
 
 data-dir: {{nodepath}}
